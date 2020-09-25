@@ -1,0 +1,27 @@
+---
+title: "Yogurts - project description"
+author: "Roza Gruter"
+date: "9/15/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Questions
+Is there really any difference between regular yogurts and those for babies?
+\
+\
+Can we distinguish any particular groups of yogurts?
+
+
+1. First, I need a URL to scrape
+2. Then I read the content of the URL into a variable with **read_html(_URL_)**
+3. Once the content is stored, I look for the information which is contained in html nodes. I use **html_nodes(nodeName)** function to find the nodeName I'm interested in (I need to find it beforehand, this is where basic knowledge of html comes in handy). then I use **html_attr(attributeName)** function to read the content of the attributeName
+4. Then, I'll be using two other functions:
+    + **html_attr(attributeName)** to read the content of the attributeName - to get URLs of all products from a result page
+    + **html_text()** to read the content of a given node
+\
+
+

@@ -1,0 +1,233 @@
+---
+title: "Web Scraping: how to get data from the web"
+author: "Roza Gruter"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document:
+  theme: yeti
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+```
+
+```{r, include=FALSE}
+library(rvest)
+library(stringr)
+library(dplyr)
+library(xml2)
+library(kableExtra)
+```
+
+### Objective
+I'm working on an analysis of dairy products (yogurts - regular and those for babies). I'm using web scraping to get the relevant data directly from the net.
+Here I'm scraping Auchan's internet store for information on each product: name, producer, price, ingredients and nutritional information.
+\
+I'm assuming some basic knowledge of html, necessary to find the information we're looking for.
+\
+
+##### Introduction to web scraping with rvest
+
+1. First, I need a URL to scrape
+2. Then I read the content of the URL into a variable with **read_html(_URL_)**
+3. Once the content is stored, I look for the information which is contained in html nodes. I use **html_nodes(nodeName)** function to find the nodeName I'm interested in (I need to find it beforehand, this is where basic knowledge of html comes in handy). then I use **html_attr(attributeName)** function to read the content of the attributeName
+4. Then, I'll be using two other functions:
+    + **html_attr(attributeName)** to read the content of the attributeName - to get URLs of all products from a result page
+    + **html_text()** to read the content of a given node
+\
+
+#### Before the fun stuff starts
+
+Creation of URL variables, to go through multiple result pages
+```{r}
+url_baby_auch <- "https://www.auchan.fr/bebe/desserts-gouters-de-bebe/desserts-lactes/ca-n080301?page="
+url_adults_auch <- "https://www.auchan.fr/produits-laitiers-oeufs-fromages/yaourts-fromages-blancs/ca-n0102?page="
+base_url_auch <- "https://www.auchan.fr"
+```
+\
+
+#### Getting URLs for each page of results for baby products
+The results are on 2 pages. First I create URLs for each page of results
+```{r}
+# variable to store URLs for each page of results
+pages_auch_baby <- data.frame("URL"=NULL)
+
+# to get the URLs of the 2 pages of results
+for (i in 1:2) {
+  temp <- data.frame("URL"=paste(url_baby_auch, i, sep=""))
+  # print(url_adults_temp)
+  pages_auch_baby <- rbind(pages_auch_baby, temp)
+}
+```
+\
+
+#### Getting URLs for each product for babies
+I take the website with the list of all products for babies and I read _href_ attribut to get links to each product's page
+```{r}
+# variable to store URLs for each product
+href_baby_auch <- data.frame("URL"=NULL)
+
+for (i in dim(pages_auch_baby)[1]) {
+  list_href_baby_auch <- read_html(as.character(pages_auch_baby[i,1])) %>%
+    html_nodes('.product-thumbnail__details-wrapper') %>%
+    html_attr("href")
+  
+  temp <- data.frame("URL"=list_href_baby_auch)
+  href_baby_auch <- rbind(href_baby_auch, temp)
+}
+```
+\
+
+#### Getting URLs for each page of results for regular products
+The results are on multiple pages. We need to first create URLs for each page of results
+```{r}
+# variable to store URLs for each page of results
+pages_auch_adults <- data.frame("URL"=NULL)
+
+# to get the URLs of all pages of results
+for (i in 1:13) {
+  temp <- data.frame("URL"=paste(url_adults_auch, i, sep=""))
+  pages_auch_adults <- rbind(pages_auch_adults, temp)
+}
+```
+\
+Then I scrape each page for _href_ attribute to get urls of each product
+```{r}
+# variable to store URLs for each product
+href_adults_auch <- data.frame("URL"=NULL)
+
+# to get URLs of all results from one page
+for (i in 1:dim(pages_auch_adults)[1]) {
+  list_href_adults_auch <- read_html(as.character(pages_auch_adults[i,1])) %>%
+    html_nodes('.product-thumbnail__details-wrapper') %>%
+    html_attr("href")
+  
+  temp <- data.frame("URL"=list_href_adults_auch)
+  
+  href_adults_auch <- rbind(href_adults_auch, temp)
+}
+```
+\
+
+#### Combine data frames of page URLs of regular and baby products
+```{r}
+pages_auch_adults <- data.frame(type="adult", URL=pages_auch_adults$URL)
+pages_auch_baby <- data.frame(type="baby", URL=pages_auch_baby$URL)
+details_auch <- rbind(pages_auch_adults, pages_auch_baby)
+```
+\
+
+#### Combine data frames of product URLs of regular and baby products
+```{r}
+href_adults_auch <- data.frame(type="adult", URL=paste(base_url_auch, href_adults_auch$URL, sep=""))
+href_baby_auch <- data.frame(type="baby", URL=paste(base_url_auch, href_baby_auch$URL, sep=""))
+details_auch <- rbind(href_adults_auch, href_baby_auch)
+```
+\
+
+#### Scrape each product's website
+I want to get nutrition info for each product and to combine all information into one data frame
+```{r}
+# placeholder for complete dataframe
+auchan_raw <- data.frame(shop="Auchan", URL=NA, type=NA, name=NA, producer=NA, ingredients=NA, stringsAsFactors=FALSE)
+
+for (i in 1:dim(details_auch)[1]) {
+  html <- read_html(as.character(details_auch[i,2]))
+  
+  name <- html_nodes(html,'.site-breadcrumb__title') %>%
+    html_text()
+  
+  producer <- html_nodes(html,'.product-description__feature-wrapper:nth-child(2) .product-description__feature-title+ .product-description__feature-group-wrapper .product-description__feature-value') %>%
+    html_text()
+  
+  ingredients <- html_nodes(html,'.product-description__feature-wrapper:nth-child(1) .product-description__feature-value') %>%
+    html_text()
+  
+  nutrition_head <- html_nodes(html,'.nutritional__head') %>%
+    html_text()
+  nutrition_cell <- html_nodes(html,'.nutritional__cell') %>%
+    html_text()
+  
+  if (length(nutrition_head) != 0) { # if we have the nutrition information for a given product
+    # calculations to get column and cell number
+    total_cells <- length(nutrition_cell) # how many cells do we have for a given product
+    nb_vars <- total_cells/length(nutrition_head) # number of variables (no division on daily value and per 100g value)
+    nb_cols <- 3
+    nb_total <- nb_vars*nb_cols
+    
+    # checking if I have all the information, or do I need to add cells
+    if (nb_total==total_cells) {
+      # creating a temporary variables to hold updated variable names
+      tmp <- as.vector(sapply(nutrition_cell[1:nb_vars], paste, "(ap100g/ml)", sep=" "))
+      temp <- as.vector(sapply(nutrition_cell[1:nb_vars], paste, "(ap_jour_%)", sep=" "))
+      
+      # modifying nutrition_cell to add new variable names
+      # index for values of (ap100g/ml)
+      b <- nb_vars+1
+      c <- nb_vars*2
+      d <- c+1
+      # updated nutrition_cell vector
+      nutrition_cell <- c(tmp, temp, nutrition_cell[b:c], nutrition_cell[d:nb_total])
+    } else {
+      tp <- rep(NA, times=nb_total-total_cells) # NA vector to be added to the existing cells
+      nutrition_cell <- c(nutrition_cell, tp) # adding NAs to the existing cells
+      # creating a temporary variables to hold updated variable names
+      tmp <- as.vector(sapply(nutrition_cell[1:nb_vars], paste, "(ap100g/ml)", sep=" "))
+      temp <- as.vector(sapply(nutrition_cell[1:nb_vars], paste, "(ap_jour_%)", sep=" "))
+      
+      # modifying nutrition_cell to add new variable names
+      # index for values of (ap100g/ml)
+      b <- nb_vars+1
+      c <- nb_vars*2
+      d <- c+1
+      # updated nutrition_cell vector
+      nutrition_cell <- c(tmp, temp, nutrition_cell[b:c], nutrition_cell[d:nb_total])
+    }
+    
+    # add an entry to the main data frame data_auchan
+    zero <- rep(0, times=dim(auchan_raw)[2]-4)
+    auchan_raw <- rbind(auchan_raw, c("Auchan", as.character(details_auch[i,2]), as.character(details_auch[i,1]), name, producer, ingredients[1], zero))
+    
+    # create a dataframe variable/value for nutrition info
+    x <- length(nutrition_cell)/2
+    nutrition_df <- data.frame(t(nutrition_cell[1:x]), stringsAsFactors=FALSE)
+    colnames(nutrition_df) <- nutrition_cell[1:x]
+    tps <- data.frame(t(nutrition_cell[(x+1):length(nutrition_cell)]), stringsAsFactors=FALSE)
+    colnames(tps) <- nutrition_cell[1:x]
+    nutrition_df <- rbind(nutrition_df, tps)
+    nutrition_df <- nutrition_df[-1,]
+  }
+
+  # add nutrition information to the data_auchan dataframe
+  g <- dim(auchan_raw)[1]
+  for (i in 1:length(nutrition_df)) {
+    if (!(colnames(nutrition_df)[i] %in% colnames(auchan_raw))) { # if variable doesn't exist in the dataframe
+      auchan_raw[g,length(auchan_raw)+1] <- nutrition_df[i] # I add a new column
+    } else {
+      id <- which(colnames(auchan_raw)==colnames(nutrition_df)[i])
+      auchan_raw[g,id] <- nutrition_df[[i]]
+    }
+  }
+}
+
+auchan_raw <- auchan_raw[-1,-1]
+```
+\
+
+#### A quick look at the raw data
+```{r}
+head(auchan_raw[,c(2, 3, 5, 6)], 5) %>%
+  kbl(caption = "Dairy prodycts raw data - extract") %>%
+  kable_minimal()
+```
+\
+
+#### Save the raw file
+To finish I save the raw data into a file.
+```{r}
+write.csv2(auchan_raw, file="DATA/auchan_raw.csv", sep=";", row.names=FALSE)
+```
+\
+
+###### Thanks for reading!!
+\
+\

@@ -1,0 +1,156 @@
+---
+title: "Clustering on Cheese dataset"
+author: "Roza Gruter"
+date: "9/23/2020"
+output:
+  html_document:
+    theme: yeti
+---
+
+##### **Tags:** #Clustering #Exercice #HAC #K-means
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r echo=FALSE}
+library(GGally)
+library(kableExtra)
+library(ggplot2, ggdendro)
+```
+
+***
+
+### Introduction
+_Fromage_ dataset is a dataset containing 29 fromages and their nutritional information.
+The goal of this exercice is to determine groups of homogenous cheeses based on the nutritional information.
+II'll use two clustering algorithms: Hierarchical Agglomerative Clustering (HAC) and K-means.
+
+_This exercice is taken from the [teaching page of Marie Chavent](http://www.math.u-bordeaux.fr/~mchave100p/teaching/) (University of Bordeaux)._
+
+### Importing dataset. Descriptive Statistics
+
+```{r}
+dta <- read.table("DATA/fromage.txt", header=TRUE, row.names=1)
+```
+
+```{r}
+head(dta) %>%
+  kbl(caption = "Extract of Cheese dataset") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+
+```{r echo=FALSE}
+summary(dta) %>%
+  kbl(caption = "Basic statistics") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+
+```{r echo=FALSE}
+std_dev <- round(apply(dta, 2, sd), 2)
+
+std_dev %>%
+  kbl(caption = "Quick glance at standard deviation for each variable", col.names = c("Standard deviation"), align="l") %>%
+  kable_styling(font_size = 10) 
+```
+- Range of variable values differ strongly
+- Standard deviation ranges from approximatively 7 to 108 units
+- No missing values for any of the variables
+
+Given the variations of the variables standardization is necessary.
+\
+\
+
+#### Correlations
+```{r fig.height=7, fig.width=10, message=FALSE}
+ggpairs(dta)
+```
+There seems to be strong links between some variables. For example we have a strong positive correlation between _calories_ and _lipides_, or _lipides_ and _cholesterol_, or a negative correlation between _calcium_ and _folates_.
+\
+\
+
+#### Data standardization
+```{r}
+n <- nrow(dta)
+dta_standard <- as.data.frame(scale(dta, center=TRUE,scale=TRUE)*sqrt(n/(n-1)))
+
+round(dta_standard[1:4,1:4], 2) %>%
+  kbl(caption = "Quick glance at standardized values", align="l") %>%
+  kable_styling(font_size = 10)
+```
+\
+
+### Hierarchical Agglomerative Clustering (HAC) using Ward algorithm
+```{r}
+d <- dist(dta_standard)
+tree <- hclust(d^2/(2*n), method="ward.D")
+```
+\
+\
+
+#### Choosing number of classes
+```{r fig.width=10, fig.height=6}
+par(mfrow=c(1,2))
+barplot(sort(tree$height, decreasing = TRUE), main="Heights of the tree")
+plot(tree, hang=-1, main="HAC Ward", sub="", xlab="")
+```
+
+Adding dividers to decide the number of classes to keep. Judgind by the heights of the tree branches (barplot), important loss of information happens between 4 and 5 classes, so 5 is retained.
+
+```{r fig.width=10, fig.height=6}
+par(mfrow=c(1,2))
+barplot(sort(tree$height, decreasing = TRUE), main="Heights of the tree")
+abline(h = 0.4, col="red")
+
+plot(tree, hang=-1, main="HAC Ward", sub="", xlab="")
+rect.hclust(tree, k=5)
+```
+\
+\
+
+#### Cutting the tree obtained wth hclust()
+A new variable _part_ is create to store cheeses and assignes class.
+```{r}
+K <- 5 # number of classes
+part <- cutree(tree,k=K)
+head(part) %>%
+  kbl(caption = "First few cheeses with assigned class", col.names = c("Assigned class"), align="l") %>%
+  kable_styling(font_size = 10) 
+```
+
+### Interpretation of clustering using PCA
+```{r}
+library(FactoMineR)
+part <- as.factor(part)
+levels(part) <- paste("cluster",1:K,sep=" ")
+res <- PCA(data.frame(part, dta), quali.sup=1, graph=FALSE) # ACP normée
+res$eig # bonne représentation sur le plan factoriel 1-2 (76% d'information retrouvée)
+```
+
+```{r fig.width=7, fig.height=5}
+par(mfrow=c(1,2))
+plot(res,habillage=1,invisible="quali",title="") # graphique des fromages sur le plan 1-2
+plot(res,choix="var",title="") # cercle des corrélations sur le plan 1-2
+```
+
+
+### Interpretation of clustering result using quantitative variables
+```{r}
+des <- catdes(data.frame(part,dta), num.var=1)
+```
+
+```{r}
+des$quanti.var
+```
+
+
+#### Cluster 5
+```{r}
+print(des$quanti$`cluster 5`[,1:5],digits=2) # cluster5
+```
+
+
+
+

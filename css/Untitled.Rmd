@@ -1,0 +1,43 @@
+---
+title: "Coronavirus notes"
+author: "Elementary Data"
+date: "18/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+Mes données contient 16 variables:
+
+* total_cases - le nombre total à jour de patients qui ont été téstés positif au Coronavirus
+* new_cases - le nombre de patients positif au Coronavirus en 24h
+* active_cases - le nombre de cas actifs en France (total_cases-total_deces-total_gueris)
+* new_active - difference du nombre des cas active en 24h
+* total_deces
+* new_deces
+* total_hosp
+* new_hosp
+* total_rea
+* new_rea
+* total_gueris
+* new_gueris
+* total_cas_es
+* new_cas_es
+* total_deces_es
+* new_deces_es
+
+
+
+Je commence par créer des diagrammes en barres pour chaque indicateur *total_* combiné avec une ligne pour l'indicateur *new_* correspondant. Sauf pour l'indicateur active_cases, que j'ai inclu avec total_cases (la même chose pour new_active).
+Ensuite je compare sur un même graphique le nombre de personnes atteintes de COVID-19 (total_cases) et le nombre de personnes gueris (total_gueris). Je veux aussi comparer les entrées à l'hopital et les nouveaux patients réa.
+
+Puis je crée des graphiques superposés interactives de plusieurs indicateurs:
+* total_cases + total_deces + total_hosp + total_rea
+* new_cases + new_deces + new_hosp + new_rea
+
+Et pour finir je construit une graphique dynamique montrant l'évolution de l'épidemie, en y incluant les dates importantes, comme le debut du confinement J, J+14 ou l'inclusion des données des établissements medicaux-sociaux dans les rapports.
