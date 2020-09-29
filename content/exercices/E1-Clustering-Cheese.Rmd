@@ -1,5 +1,5 @@
 ---
-title: "Clustering on Cheese dataset"
+title: "Classification on Cheese dataset"
 author: "Roza Gruter"
 date: "9/23/2020"
 output:
@@ -7,7 +7,7 @@ output:
     theme: yeti
 ---
 
-##### **Tags:** #Clustering #Exercice #HAC #K-means
+#### **Tags:** #Exercice #Clustering #HAC #K-means
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
@@ -16,7 +16,6 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```{r echo=FALSE}
 library(GGally)
 library(kableExtra)
-library(ggplot2, ggdendro)
 ```
 
 ***
@@ -50,10 +49,11 @@ summary(dta) %>%
 
 ```{r echo=FALSE}
 std_dev <- round(apply(dta, 2, sd), 2)
-
+std_dev <- std_dev[order(std_dev)]
 std_dev %>%
   kbl(caption = "Quick glance at standard deviation for each variable", col.names = c("Standard deviation"), align="l") %>%
-  kable_styling(font_size = 10) 
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
 ```
 - Range of variable values differ strongly
 - Standard deviation ranges from approximatively 7 to 108 units
@@ -78,16 +78,62 @@ dta_standard <- as.data.frame(scale(dta, center=TRUE,scale=TRUE)*sqrt(n/(n-1)))
 
 round(dta_standard[1:4,1:4], 2) %>%
   kbl(caption = "Quick glance at standardized values", align="l") %>%
-  kable_styling(font_size = 10)
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+
+summary(dta_standard) %>%
+  kbl(caption = "Basic statistics on standardized data", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
 ```
 \
 
+```{r eval=FALSE, include=FALSE}
+calories <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=calories)) +
+  ylim(-3, 3)
+
+sodium <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=sodium)) +
+  ylim(-3, 3)
+
+calcium <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=calcium)) +
+  ylim(-3, 3)
+
+lipides <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=lipides)) +
+  ylim(-3, 3)
+
+retinol <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=retinol)) +
+  ylim(-3, 3)
+
+folates <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=folates)) +
+  ylim(-3, 3)
+
+proteines <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=proteines)) +
+  ylim(-3, 3)
+
+cholesterol <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=cholesterol)) +
+  ylim(-3, 3)
+
+magnesium <- ggplot(data=dta_standard, aes(x="")) +
+  geom_boxplot(aes(y=magnesium)) +
+  ylim(-3, 3)
+
+ggarrange(calories, sodium, calcium, lipides, retinol, folates, proteines, cholesterol, magnesium, ncol=9, align="h", 
+             main="")
+```
+
 ### Hierarchical Agglomerative Clustering (HAC) using Ward algorithm
 ```{r}
-d <- dist(dta_standard)
+d <- dist(dta_standard) # calculating the distance
 tree <- hclust(d^2/(2*n), method="ward.D")
 ```
-\
 \
 
 #### Choosing number of classes
@@ -108,48 +154,97 @@ plot(tree, hang=-1, main="HAC Ward", sub="", xlab="")
 rect.hclust(tree, k=5)
 ```
 \
-\
 
 #### Cutting the tree obtained wth hclust()
-A new variable _part_ is create to store cheeses and assignes class.
+A new variable _part_ is created to store cheeses and assignes classes.
 ```{r}
 K <- 5 # number of classes
 part <- cutree(tree,k=K)
-head(part) %>%
-  kbl(caption = "First few cheeses with assigned class", col.names = c("Assigned class"), align="l") %>%
-  kable_styling(font_size = 10) 
 ```
 
-### Interpretation of clustering using PCA
+```{r include=FALSE}
+hac <- as.factor(part)
+# levels(part) <- paste("cluster",1:K,sep=" ")
+hac <- as.data.frame(hac)
+cheese_HAC <- as.data.frame(rownames(hac))
+hac <- cbind(cheese_HAC, hac)
+colnames(hac) <- c("cheese","cluster_HAC")
+hac <- hac[order(hac$cluster_HAC),]
+rownames(hac) <- NULL
+```
+\
+
+### Clustering with K-means
+K-means is initialized with 5 classes:
 ```{r}
-library(FactoMineR)
-part <- as.factor(part)
-levels(part) <- paste("cluster",1:K,sep=" ")
-res <- PCA(data.frame(part, dta), quali.sup=1, graph=FALSE) # ACP normée
-res$eig # bonne représentation sur le plan factoriel 1-2 (76% d'information retrouvée)
+init <-dta[1:5,] # 5 classes
+km <- kmeans(dta, centers=init) # k-means
 ```
 
-```{r fig.width=7, fig.height=5}
-par(mfrow=c(1,2))
-plot(res,habillage=1,invisible="quali",title="") # graphique des fromages sur le plan 1-2
-plot(res,choix="var",title="") # cercle des corrélations sur le plan 1-2
+```{r include=FALSE}
+kmeans <- as.data.frame(km$cluster, row.names = FALSE) # to get the results of clustering
+cheese <- as.data.frame(rownames(kmeans))
+kmeans <- cbind(cheese, kmeans$`km$cluster`)
+names(kmeans) <- c("cheese", "cluster_k-means")
+kmeans <- kmeans[order(kmeans$`cluster_k-means`),]
+rownames(kmeans) <- NULL
 ```
 
+```{r include=FALSE}
+Tot <- km$totss # cette sortie la somme de carrés totaux
+W <- km$tot.withinss # cette sortie donne la somme de carrés intra-classe
+B <- km$betweenss # cette sortie donne la somme des carrés inter-classe
+```
+This classification explains `r round(B/Tot*100, 2)`% of total inertia.
 
-### Interpretation of clustering result using quantitative variables
+##### Comparing clustering with HAC and K-means
 ```{r}
-des <- catdes(data.frame(part,dta), num.var=1)
+km1 <- as.vector(kmeans[1:6,1])
+km1 <- c(km1, "", "", "", "")
+km2 <- as.vector(kmeans[7:10,1])
+km2 <- c(km2, "", "", "", "", "", "")
+km3 <- as.vector(kmeans[11:16,1])
+km3 <- c(km3, "", "", "", "")
+km4 <- as.vector(kmeans[17:19,1])
+km4 <- c(km4, "", "", "", "", "", "", "")
+km5 <- as.vector(kmeans[20:29,1])
 ```
 
 ```{r}
-des$quanti.var
+hac1 <- as.vector(hac[1:5,1])
+hac1 <- c(hac1, "", "", "", "", "", "", "")
+hac2 <- as.vector(hac[6:17,1])
+hac3 <- as.vector(hac[18:21,1])
+hac3 <- c(hac3, "", "", "", "", "", "", "", "")
+hac4 <- as.vector(hac[22:25,1])
+hac4 <- c(hac4,  "", "", "", "", "", "", "", "")
+hac5 <- as.vector(hac[26:29,1])
+hac5 <- c(hac5,  "", "", "", "", "", "", "", "")
 ```
 
-
-#### Cluster 5
 ```{r}
-print(des$quanti$`cluster 5`[,1:5],digits=2) # cluster5
+data.frame(hac1, hac2, hac3, hac4, hac5) %>%
+  kbl(caption = "Clustering results - HAC algorithm", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+
+data.frame(km1, km2, km3, km4, km5) %>%
+  kbl(caption = "Clustering results - K-means algorithm", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
 ```
+The two classifications are quite different. The only class that is exactly the same is the class of cream cheeses and yogurts.
+\
+\
+\
+
+
+
+
+
+
+
+
 
 
 

@@ -1,0 +1,194 @@
+---
+title: "Interpretation of classification on Cheese dataset"
+author: "Roza Gruter"
+date: "9/23/2020"
+output:
+  html_document:
+    theme: yeti
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r echo=FALSE}
+library(FactoMineR)
+library(dplyr)
+library(kableExtra)
+```
+
+```{r include=FALSE}
+dta <- read.table("DATA/fromage.txt", header=TRUE, row.names=1)
+
+# HAC
+n <- nrow(dta)
+dta_standard <- as.data.frame(scale(dta, center=TRUE,scale=TRUE)*sqrt(n/(n-1)))
+d <- dist(dta_standard)
+tree <- hclust(d^2/(2*n), method="ward.D")
+K <- 5 # number of classes
+part <- cutree(tree,k=K)
+
+# K-means
+init <-dta[6:10,] # 5 classes
+km <- kmeans(dta, centers=init) # k-means
+```
+
+***
+### Interpretation of classification results
+#### Interpretation by PCA
+```{r}
+part <- as.factor(part)
+levels(part) <- paste("cluster",1:K,sep=" ")
+res.pca <- PCA(data.frame(part, part_km, dta), quali.sup=c(1, graph=FALSE)) # normalized PCA
+```
+
+##### Eigenvalues and explained data variability
+```{r}
+round(res.pca$eig, 3) %>%
+  head(6) %>%
+  kbl(caption = "Eigenvalues and percentage of explained inertia", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+First two components explain together 76% of information contained in the data. Third component seem fairly important as well, as it adds 10% of explained data variability.
+\
+\
+
+##### Correlation circle - quick look at the representation of variables
+```{r fig.width=7, fig.height=5}
+plot(res.pca,choix="var",title="Correlation circle of variables")
+```
+\
+Looking at the correlation circle, all the vartiables are well representes on at least one of the first two dimensions. Quality of representation is slightly worst for _retinol_ and _folates_, but it remains reasonable.
+Most variables are strongly positively correlatred with each other (_lipides, calories, cholesterol, proteines, magnesium, calcium_). _Calcium_ and _folates/retinol_ are negatively correlated.
+
+```{r eval=FALSE, include=FALSE}
+# Quality of representation of indivduals
+tt <- as.data.frame(res.pca$ind$cos2)
+tt[tt[1]>0.5,]
+
+tt[order(tt$Dim.1, decreasing = TRUE),] %>%
+  kbl(caption = "Quality of representation of indivduals on first five dimensions", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+\
+
+##### Quick look at the observations
+```{r fig.width=15, fig.height=5}
+par(mfrow=c(1,2))
+plot(res.pca,invisible="quali",title="Cheese", graph.type = "classic", label="none")
+plot(res.pca,invisible="quali",title="Cheese", graph.type = "classic")
+```
+There seem to be 4 groups of individuals: bottom-left (4 observations), top-left (1 observation), middle-right (4 observations) and middle cluster. Looking at cheese types bottom-left seem to be light cheeses, middle-right hard cheeses, everything else in the middle, and one cheese detaches from the rest (Fr.chevrepatemolle).
+\
+\
+
+##### Overlying clusters obtained with HAC and K-means on the PCA observation graph
+###### HAC
+```{r}
+plot(res.pca,habillage=1,invisible="quali",title="HAC", graph.type = "classic")
+plot(res.pca,choix="var",title="Correlation circle of variables")
+```
+\
+The results of clustering confirm fresh cheese class and hard cheese class, then the middle part is divided in three. _Fr.chevrepatemolle_ was placed in the cluster 4, with three other cheeses.
+
+Fresh cheeses and yoghurt are poor in nutritional content, situated at the oposite side of the variables. They are especially poor in cholesterol or calories from the bad, and calcium from the good. On the other hand we have hard chesses (parmesan, comté etc.) that are on the contrary rich in cholesterol and calories, but also rich in calcium or magnesium.
+_Fr.chevrepatemolle_ is caracterized by high content of folates and retinol. A good cheese for pregnant women, or people who want to get rid of some wrinkles ;)
+\
+\
+
+###### K-means
+```{r}
+plot(res.pca,habillage=2,invisible="quali",title="K-means", graph.type = "classic")
+plot(res.pca,choix="var",title="Correlation circle of variables")
+```
+
+
+###### Comparison HAC - K-means
+```{r fig.width=15, fig.height=12}
+par(mfrow=c(2,1))
+plot(res.pca,habillage=1,invisible="quali",title="HAC", graph.type = "classic")
+plot(res.pca,habillage=2,invisible="quali",title="K-means", graph.type = "classic")
+```
+```{r}
+plot(res.pca,choix="var",title="Correlation circle of variables")
+```
+
+
+#### Interpretation of classification results using quantitative variables 
+```{r}
+des <- catdes(data.frame(part,dta), num.var=1)
+```
+
+##### About the partition
+```{r}
+des$quanti.var %>%
+  kbl(caption = "Correlation coefficient between the partition and variables", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+This partition is best characterized by _calories_, _lipides_, _proteines_, _cholesterol_ and _folates_, but overall all the variables play an important role in the definition of the partition.
+\
+\
+
+##### Classes (HAC)
+```{r}
+round(des$quanti$`cluster 1`, 2) %>%
+  kbl(caption = "Class 1", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+Cheeses in class 1 are characterized by strong quantity of sodium: `r names(part[part == "cluster 1"])`.
+\
+\
+
+```{r}
+round(des$quanti$`cluster 2`, 2) %>%
+  kbl(caption = "Class 2", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+Cheeses in class 2 are characterized by feeble quantity of folates: `r names(part[part == "cluster 2"])`.
+\
+\
+
+```{r}
+round(des$quanti$`cluster 3`, 2) %>%
+  kbl(caption = "Class 3", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+Cheeses in class 3 are characterized by strong quantity of magnesium, proteines, calcium, cholesterol and calories: `r names(part[part == "cluster 3"])`.
+\
+\
+
+```{r}
+round(des$quanti$`cluster 4`, 2) %>%
+  kbl(caption = "Class 4", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+Cheeses in class 4 are characterized by strong quantity of retinol and folates: `r names(part[part == "cluster 4"])`.
+\
+\
+
+```{r}
+round(des$quanti$`cluster 5`, 2) %>%
+  kbl(caption = "Class 5", align="l") %>%
+  kable_styling(font_size = 10) %>%
+  kable_minimal()
+```
+
+Cheeses in class 5 are characterized by feeble quantity of magnesium, sodium, proteines, cholesterol, calories and lipides: `r names(part[part == "cluster 5"])`.
+\
+\
+
+
+
+
+
+
+
+
+
