@@ -1,0 +1,181 @@
+---
+title: "Data Cleaning: putting order in raw dataset"
+author: "Roza Gruter"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    theme: yeti
+    toc: true
+    toc_depth: 5
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(dplyr)
+library(stringr)
+library(kableExtra)
+library(ggplot2)
+library(naniar)
+```
+
+```{r include=FALSE}
+# importing dataset
+data <- read.csv2("DATA/auchan_raw.csv", sep=",")
+```
+\
+
+### The data
+This paper is Part 2 of dairy products analysis project. Part 1 (web scraping) can be checked [here](https://rozagruter.github.io/content/projects/1_WebScraping-yogurts.html).
+\
+\
+
+#### Data at a glance
+A quick look at a selection of four variables from raw dataset
+```{r echo=FALSE}
+head(data[,c(4,7:9)])
+```
+\
+
+#### Structure
+```{r echo=FALSE}
+str(data[7:10])
+```
+
+There are several problems that we can spot immediately:
+
+- first column is just an index, so it can be deleted
+- variable names are a mess, we will have to rename them
+- most variables are factors while they should be numeric
+- ordering of the variables is a mess as well
+\
+
+### Cleaning the data
+
+#### 1. Deleting first column
+First column of the dataset is an old index column, it is deleted.
+```{r}
+data$X <- NULL
+```
+\
+
+#### 2. Transforming characters into numbers
+All the numeric data have been scraped as strings with a special character present (\n). Here I'm replacing "\n" with nothing (""), then I remove all the leading and trainling spaces, and I transform the result into a number.
+```{r}
+for (i in 6:length(data)) {
+  if (!is.numeric(data[,i])) {
+    data[i] <- gsub("[\n]", "", data[,i]) %>%
+      trimws() %>%
+      as.numeric()
+  }
+}
+```
+\
+
+Quick look at the dataset now that variables are correctly displayed as numeric
+```{r}
+str(data[6:10])
+```
+\
+
+#### 3. Renaming columns
+I start by putting existing column names into a vector to work on a separate object. The data frame will only be updated once all the modifications are validated.
+```{r}
+c.names <- colnames(data)
+```
+\
+
+##### First part: I'm taking care of formatting dosage information
+```{r}
+c.names <- str_replace(c.names, "..en.g...ap_jour_..", ".ppj") %>%
+  str_replace(".en.Kj..ap_jour_..", ".pkjpj") %>%
+  str_replace(".en.Kj..ap100g.ml.", ".kjp100") %>%
+  str_replace(".en.Kcal..ap100g.ml.", ".kcalp100") %>%
+  str_replace(".en.Kcal..ap_jour_..", ".pkcalpj") %>%
+  str_replace("..en.g...ap100g.ml.", ".gp100") %>%
+  str_replace("..en.µg...ap100g.ml.", ".µgp100") %>%
+  str_replace("..en.µg...ap_jour_..", ".ppj") %>%
+  str_replace("..en.mg...ap100g.ml.", ".mgp100") %>%
+  str_replace("..en.mg...ap_jour_..", ".ppj")
+```
+\
+
+##### Second part: I'm taking care of french caracters and I'm shortening variable names
+```{r}
+c.names <- str_to_lower(c.names) %>%
+  str_replace_all(c("é"="e", "è"="e", " "=".", "µg"="mcg",
+                  "valeurs.energetiques"="val.energ",
+                  "matieres.grasses"="mat.grasses",
+                  "fibres.alimentaires"="f.aliment",
+                  "acide.folique"="a.folique",
+                  "acide.pantothenique"="a.pantothenique"))
+```
+\
+
+##### Third part: I'm replacing old column names with new ones
+```{r}
+colnames(data) <- c.names
+```
+\
+
+#### 4. Ordering columns
+I keep the variables like _type_ and _name_ at the beginning, then I reorder the rest putting the value in respective units (grammes, miligrammes etc.) first, followed by percentage of daily recommended intake.
+\
+
+I start by manually ordering 21 first variables. I store them in _sorted.names_ object
+```{r}
+sorted.names <- c(c.names[1:5], c.names[7], c.names[15], c.names[6], c.names[14], c.names[8:9], c.names[16:17], c.names[10:11], c.names[18:19], c.names[12], c.names[20], c.names[13], c.names[21])
+```
+\
+
+Then I create a temporary object _temp_ and store in it all the remaining variables that I sort first. I continue by adding those variables to the _sorted.names_ object.
+```{r}
+temp <- sort(c.names[!(c.names %in% sorted.names)])
+sorted.names <- c(sorted.names, temp)
+```
+\
+
+The last step is to reorder columns in the dataset
+```{r}
+data <- data[, sorted.names]
+```
+\
+
+### Result
+Here is an extract of cleaned dataset:
+```{r}
+head(data[,c(4,6:9)]) %>%
+  kbl(caption = "Extract of cleaned dataset") %>%
+  kable_minimal(font_size = 12, bootstrap_options=c("stripped", "hover"), full_width=F, position="left")
+```
+\
+
+#### Note on missing variables
+I completely left out missing values management in this section. There is a very high number of missing values in this dataset. 
+```{r fig.width=8}
+nas <- miss_var_summary(data) %>%
+  select("variable", "n_miss")
+
+ggplot(nas) +
+  aes(y=n_miss, x=variable) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust=1))
+```
+\
+
+Overall `r sum(nas$n_miss>0)` variables have missing values, out of which `r sum(nas$n_miss>30)` have more than 30 missing values. I would like to find a way of replacing them instead of dropping observations or variables. In order to do so I'll work on missing values for each variable separately while performing exploratory analysis.
+\
+
+### Save the cleaned file
+To finish I save the cleaned data into a file.
+```{r}
+write.csv2(data, file="DATA/auchan_cleaned.csv", row.names=FALSE)
+```
+\
+
+##### Thanks for reading!!
+\
+\
