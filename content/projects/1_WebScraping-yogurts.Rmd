@@ -2,8 +2,12 @@
 title: "Web Scraping: how to get data from the web"
 author: "Roza Gruter"
 date: "`r format(Sys.time(), '%d %B %Y')`"
-output: html_document:
-  theme: yeti
+output:
+  html_document:
+    theme: yeti
+    toc: true
+    toc_depth: 5
+    toc_float: TRUE
 ---
 
 ```{r setup, include=FALSE}
@@ -20,7 +24,7 @@ library(kableExtra)
 
 ### Objective
 I'm working on an analysis of dairy products (yogurts - regular and those for babies). I'm using web scraping to get the relevant data directly from the net.
-Here I'm scraping Auchan's internet store for information on each product: name, producer, price, ingredients and nutritional information.
+Here I'm scraping Auchan's internet store for information on each product: name, producer, ingredients and nutritional information.
 \
 I'm assuming some basic knowledge of html, necessary to find the information we're looking for.
 \
